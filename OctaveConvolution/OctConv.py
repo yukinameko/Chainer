@@ -1,5 +1,6 @@
 import chainer
 import chainer.links as L
+import chainer.functions as F
 import numpy as np
 
 def isNone(n):
@@ -38,17 +39,20 @@ class OctConv2d(OctConv2dBase):
 	"""docstring for OctConv2d"""
 	def __call__(self, x):
 		high, low = x
+		high_shape = high.shape[2:]
+		low_pad = (high_shape[0]%2, high_shape[1]%2)
 
 		high_to_high = self.conv_high_to_high(high)
-		low_to_high = self.conv_low_to_high(F.avg_pooling_2d(low))
+		_low = F.unpooling_2d(low, ksize=2, stride=2, outsize=high_shape)
+		low_to_high = self.conv_low_to_high(_low)
 
-		high_to_low = self.conv_high_to_low(high)
+		high_to_low = self.conv_high_to_low(F.average_pooling_2d(high, ksize=2, stride=2, pad=low_pad))
 		low_to_low = self.conv_low_to_low(low)
 
 		out_high = high_to_high + low_to_high
 		out_low = high_to_low + low_to_low
 
-		return np.array([out_high, out_low])
+		return [out_high, out_low]
 
 class OctConv2dIn(OctConv2dBase):
 	"""docstring for OctConv2dIn"""
@@ -56,14 +60,17 @@ class OctConv2dIn(OctConv2dBase):
 		super(OctConv2dIn, self).__init__(in_channels, out_channels, in_alpha=0, out_alpha=out_alpha, ksize=ksize, stride=stride, pad=pad, nobias=nobias, initialW=initialW, initial_bias=initial_bias, dilate=dilate, groups=groups)
 	
 	def __call__(self, x):
+		shape = x.shape[2:]
+		low_pad = (shape[0]%2, shape[1]%2)
+
 		high_to_high = self.conv_high_to_high(x)
 
-		high_to_low = self.conv_high_to_low(x)
+		high_to_low = self.conv_high_to_low(F.average_pooling_2d(x, ksize=2, stride=2, pad=low_pad))
 
 		out_high = high_to_high
 		out_low = high_to_low
 
-		return np.array([out_high, out_low])
+		return [out_high, out_low]
 
 class OctConv2dOut(OctConv2dBase):
 	"""docstring for OctConv2dOut"""
@@ -72,9 +79,11 @@ class OctConv2dOut(OctConv2dBase):
 	
 	def __call__(self, x):
 		high, low = x
+		high_shape = high.shape[2:]
 
 		high_to_high = self.conv_high_to_high(high)
-		low_to_high = self.conv_low_to_high(F.avg_pooling_2d(low))
+		_low = F.unpooling_2d(low, ksize=2, stride=2, outsize=high_shape)
+		low_to_high = self.conv_low_to_high(_low)
 
 		return high_to_high + low_to_high
 		

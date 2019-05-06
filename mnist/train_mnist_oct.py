@@ -4,6 +4,12 @@ import chainer.datasets
 from chainer import training
 from chainer.training import extensions
 from mnist_oct import MNIST_OCT
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--gpu', type=int, default=-1)
+parser.add_argument('--out', default='mnist_oct_result')
+args = parser.parse_args()
 
 train, test = chainer.datasets.get_mnist(ndim=3)
 train_iter = chainer.iterators.SerialIterator(train, 32)
@@ -11,12 +17,17 @@ test_iter = chainer.iterators.SerialIterator(train, 32, repeat=False, shuffle=Fa
 
 model = MNIST_OCT()
 model = L.Classifier(model)
+
+if args.gpu >= 0:
+	chainer.cuda.get_device_from_id(args.gpu).use()
+	model.to_gpu()
+
 optimizer = chainer.optimizers.Adam()
 optimizer.setup(model)
-updater = training.StandardUpdater(train_iter, optimizer, device=-1)
-trainer = training.Trainer(updater, (10, 'epoch'), out='result')
+updater = training.StandardUpdater(train_iter, optimizer, device=args.gpu)
+trainer = training.Trainer(updater, (10, 'epoch'), out=args.out)
 
-trainer.extend(extensions.Evaluator(test_iter, model, device=-1))
+trainer.extend(extensions.Evaluator(test_iter, model, device=args.gpu))
 trainer.extend(extensions.dump_graph('main/loss'))
 trainer.extend(extensions.snapshot(), trigger=(10, 'epoch'))
 trainer.extend(extensions.LogReport())
